@@ -22,7 +22,7 @@ IF_LABELS = [
 AXIS_LABEL_DICT = {
     "otfmap": {"x": "unknow", "y": "unknown"},
     "psw": {"x": "Frequency [GHz]", "y": "Power [K]"},
-    "timestream": {"x": "Frequency [GHz]", "y": "Power [a.u.]"},
+    "timestream": {"x": "Time stream", "y": "Power [a.u.]"},
 }
 T_AMB = 273.
 FREQ = (128 - 0.1) + np.linspace(0., 2.5, 2**15)
@@ -91,16 +91,36 @@ class NetCDF2Qlook(object):
     def timestream(self):
         """
         """
-        with xr.open_dataset(self.scis[0]) as data:
-            _arrays = data["array"]
-            _integ_data = np.average(_arrays, axis=1)
-            _x = np.arange(len(_integ_data))
+        plots = []
+        colors = ["tomato", "olivedrab", "palevioletred", "steelblue"]
+        for i, (s, c) in enumerate(zip(self.scis, colors)):
+            with xr.open_dataset(s) as data:
+                _arrays = data["array"]
+                _integ_data = np.average(_arrays, axis=1)
+                # _integ_data = _arrays[:, 8000:24000].mean("array_dim0").values
+                _x = np.arange(len(_integ_data))
 
-        p = figure(title=self.title, plot_width=960, plot_height=540)
-        p.line(_x, _integ_data, legend="Timestream",
-               line_color="midnightblue", line_width=1.)
-        return self._create_looks(p)
+            if i == 0:
+                p = figure(title=self.title, plot_width=640, plot_height=360)
+            else:
+                p = figure(plot_width=640, plot_height=360)
+            p.line(_x, _integ_data,
+                   color=c, line_width=1., legend=IF_LABELS[i])
+            plots.append(self._create_looks(p))
 
+        plots = gridplot([plots[0], plots[1]], [plots[2], plots[3]])
+        return plots
+
+        # with xr.open_dataset(self.scis[1]) as data:
+        #     _arrays = data["array"]
+        #     _integ_data = np.average(_arrays, axis=1)
+        #     _x = np.arange(len(_integ_data))
+        #
+        # p = figure(title=self.title, plot_width=960, plot_height=540)
+        # p.line(_x, _integ_data, legend="Timestream",
+        #        line_color="midnightblue", line_width=1.)
+        # return self._create_looks(p)
+        #
     def save(self):
         """
         """
