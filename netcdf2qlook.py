@@ -4,6 +4,7 @@ import sys
 import argparse
 import numpy as np
 import xarray as xr
+from datetime import datetime
 from pathlib import Path
 from bokeh.plotting import figure, output_file, save
 from bokeh.layouts import gridplot
@@ -27,7 +28,8 @@ AXIS_LABEL_DICT = {
 }
 COLORS = ["tomato", "olivedrab", "palevioletred", "steelblue"]
 T_AMB = 273.
-FREQ = (128 - 0.1) + np.linspace(0., 2.5, 2**15)
+USB_FREQ = (145.7 - 0.1) + np.linspace(0., 2.5, 2**15)
+LSB_FREQ = (132. - 0.1) + np.linspace(0., 2.5, 2**15)
 
 
 class NetCDF2Qlook(object):
@@ -102,13 +104,16 @@ class NetCDF2Qlook(object):
             with xr.open_dataset(s) as sci, xr.open_dataset(c) as cal:
                 Rs.append((cal["array"] / cal["integtime"]).mean("t"))
                 ONs.append(
-                    (sci["array"] / sci["integtime"])[sci["bufpos"]=="ON"]
+                    (sci["array"] / sci["integtime"])[sci["bufpos"] == "ON"]
                 )
                 OFFs.append(
-                    (sci["array"] / sci["integtime"])[sci["bufpos"]=="REF"]
+                    (sci["array"] / sci["integtime"])[sci["bufpos"] == "REF"]
                 )
+        # print(ONs[0])
+        # print(OFFs[0])
         Tcals = [
-            T_AMB * (on - off[1:]) / (r - off[1:])
+            # T_AMB * (on - off[1:]) / (r - off[1:])
+            T_AMB * (on[4:] - off) / (r - off)
             for r, on, off in zip(Rs, ONs, OFFs)
         ]
 
@@ -118,8 +123,13 @@ class NetCDF2Qlook(object):
                 p = figure(title=self.title, plot_width=640, plot_height=360)
             else:
                 p = figure(plot_width=640, plot_height=360)
-            p.line(FREQ, t.mean("t").values,
-                   color=c, line_width=1., legend=IF_LABELS[i])
+
+            if i == 0 or i == 2:
+                p.line(LSB_FREQ, t.mean("t").values,
+                    color=c, line_width=1., legend=IF_LABELS[i])
+            if i == 1 or i == 3:
+                p.line(USB_FREQ, t.mean("t").values,
+                    color=c, line_width=1., legend=IF_LABELS[i])
             plots.append(self._create_looks(p))
 
         plots = gridplot([plots[0], plots[1]], [plots[2], plots[3]])
@@ -137,15 +147,25 @@ class NetCDF2Qlook(object):
         plots = []
         for i, (s, c) in enumerate(zip(self.scis, COLORS)):
             with xr.open_dataset(s) as data:
+                time = np.array(
+                    [d[:-4] for d in data["date"].values],
+                    "datetime64[us]",
+                )
+                flag = time < time[-1]
                 arrays = data["array"]
-                integ_data = np.average(arrays, axis=1)
-                x = np.arange(len(integ_data))
+                time = time[flag]
+                integ_data = np.average(arrays, axis=1)[flag]
+                # integ_data = arrays[:, 12000:18000].mean("array_dim0").values
+                del(arrays)
+                # x = np.arange(len(integ_data))
 
             if i == 0:
-                p = figure(title=self.title, plot_width=640, plot_height=360)
+                p = figure(title=self.title, x_axis_type="datetime",
+                           plot_width=640, plot_height=360)
             else:
-                p = figure(plot_width=640, plot_height=360)
-            p.line(x, integ_data, color=c,
+                p = figure(x_axis_type="datetime",
+                           plot_width=640, plot_height=360)
+            p.line(time, integ_data, color=c,
                    line_width=1., legend=IF_LABELS[i])
             plots.append(self._create_looks(p))
 
@@ -195,7 +215,8 @@ class NetCDF2Qlook(object):
 
 
 def main():
-    _usage = "aaa"
+    _usage = "python netcdf2qlook OBS_ID" \
+        + " [-t --type TYPE] [-c --cal_id CAL_ID] [--title TITLE]"
     parser = argparse.ArgumentParser(
         prog="netcdf2qlook",
         usage=_usage,
