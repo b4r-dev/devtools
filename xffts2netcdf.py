@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+# -*- coding: utf-8
 """Convert XFFTS binary file to netCDF.
 
 Usage: $ python xffts2netcdf.py <xffts binary file> <netcdf>
@@ -33,6 +35,21 @@ CONFIG = (
     ('junk2', '172s'),
     ('array', 'f', 32768)
 )
+''' Old config
+CONFIG = [
+    ('date', '28s'),
+    ('junk1', '4s'),
+    ('obsnum', 'l'),
+    ('bufpos', '8s'),
+    ('scanmode', '8s'),
+    ('chopperpos', '8s'),
+    ('scancount', 'l'),
+    ('speccount', 'l'),
+    ('integtime', 'l'),
+    ('junk2', '184s'),
+    ('array', 'f', 32768)
+]
+'''
 
 
 # functions and classes
@@ -182,12 +199,14 @@ def main():
     """Main function for command line tool."""
     args = sys.argv[1:]
 
-    if not len(args) == 2:
-        print(__doc__)
-        sys.exit(0)
-
     xffts  = Path(args[0]).expanduser()
-    netcdf = Path(args[1]).expanduser()
+    if len(args) == 1:
+      netcdf = Path(f"{xffts}.nc")
+    elif len(args) == 2:
+      netcdf = Path(args[1]).expanduser()
+    else:
+      print(__doc__)
+      sys.exit(0)
 
     with xffts.open('rb') as f, Struct2NetCDF(netcdf, CONFIG) as g:
         filesize = xffts.stat().st_size
